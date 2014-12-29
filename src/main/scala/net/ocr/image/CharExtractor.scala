@@ -2,6 +2,7 @@ package net.ocr.image
 
 import com.sksamuel.scrimage.Image
 import net.ocr.common._
+import net.ocr.image.CharExtractor._
 
 /**
  * The aim of the class is to split an image into a bunch of smaller image supposed to represent
@@ -37,7 +38,7 @@ class CharExtractor(image: Image) {
     // TODO return as rectangle to be able to store/display the characters' bounds?
     val subImage = new SubImage(image, area, backgroundColor)
 
-    def extractCharsInternal(cursor: Int, acc: List[Image]): List[Image] = {
+    def extractCharsInternal(cursor: Int, acc: List[Rectangle]): List[Rectangle] = {
       val firstPixel = subImage.findNextPixel(cursor)
 
       if (firstPixel.x == -1) acc
@@ -46,10 +47,11 @@ class CharExtractor(image: Image) {
           case Nil => acc
           case charPixels => {
             val charBounds = getBounds(charPixels)
+            val completeBounds = Rectangle(area.x + charBounds.x, area.y, charBounds.width, area.height)
             //val charImage = image.subimage(area.x + charBounds.x, area.y + charBounds.y, charBounds.width, charBounds.height)
             val charImage = image.subimage(area.x + charBounds.x, area.y, charBounds.width, area.height)
             //val clearedCharImage = charImage.map((x, y, p) => if (charPixels.contains(XYPosition(x, y))) p else backgroundColor)
-            extractCharsInternal(charBounds.x + charBounds.width + 1, charImage :: acc)
+            extractCharsInternal(charBounds.x + charBounds.width + 1, completeBounds :: acc)
           }
         }
       }
@@ -77,12 +79,13 @@ class CharExtractor(image: Image) {
    */
   def findParagraphs(): List[List[Block]] = {
     val bits = compressLinesToBits()
-    val lineBlocks = bitsToBlock(bits)
+    val lineBlocks = bitsToBlock(bits.map(f => f._1))
+    val filteredLineBlocks = lineBlocks //.filter(b => b.full == false || (b.full == true && b.length > 5))
 
-    val stats = new Statistics().groupStats(lineBlocks.filter(_.full == false))
+    val stats = new Statistics().groupStats(filteredLineBlocks.filter(_.full == false))
     val interlineHeightMax = computeLineHeight(stats).to
 
-    val paragraph = lineBlocks.filter((lineBlock) => lineBlock.full || lineBlock.length > interlineHeightMax).reverse
+    val paragraph = filteredLineBlocks.filter((lineBlock) => lineBlock.full || lineBlock.length > interlineHeightMax).reverse
     paragraph.foldLeft[List[List[Block]]](Nil)((acc, block) => block match {
       case Block(false, _, _) => acc match {
         case Nil => acc
@@ -93,7 +96,7 @@ class CharExtractor(image: Image) {
         case Nil => List(List(block))
         case x :: xs => (x ::: List(block)) :: xs
       }
-    }).filter((p) => p.nonEmpty).reverse
+    }).filter((p) => p.nonEmpty)
   }
 
   //private def computeLineHeight(blocks: List[Block]) = blocks.foldLeft(0)((acc, block) => acc + (block.length) / blocks.size)
@@ -123,17 +126,27 @@ class CharExtractor(image: Image) {
       case Block(full, start, end) :: xs =>
         if (full == bit) Block(full, start, end + 1) :: xs
         else Block(bit, end + 1, end + 1) :: Block(full, start, end) :: xs
-    })
+    }).reverse
 
-  def compressLinesToBits(): Seq[Boolean] = {
-    for (i <- 0 to image.height - 1) yield compressLine(i)
+  def compressLinesToBits(): Seq[(Boolean, Int)] = {
+    val lines = (for (i <- 0 to image.height - 1) yield compressLine(i)).map(_._2)
+
+    lines.foldLeft[List[(Boolean, Int)]](Nil)((acc, count) => acc match {
+      case Nil => List((count > MIN_NB_PIXELS, count))
+      case _ if (count > MIN_NB_PIXELS) => acc ::: List((true, count))
+      case _ if (count < 2) => acc ::: List((false, count))
+      case _ => acc ::: List((acc.last._1, count))
+    })
   }
 
-  private def compressLine(line: Int): Boolean = {
-    for (j <- 0 to image.width - 1) {
-      if (image.pixel(j, line) != backgroundColor) return true
+  private def compressLine(line: Int): (Boolean, Int) = {
+    def compressLineInternal(counter: Int, position: Int): Int = {
+      if (position < image.width) compressLineInternal(counter + (if (image.pixel(position, line) != backgroundColor) 1 else 0), position + 1)
+      else counter
     }
-    false
+
+    val counter = compressLineInternal(0, 0)
+    (counter > MIN_NB_PIXELS, counter)
   }
 
   private def compressBlock(startLine: Int, endLine: Int): Seq[Boolean] = {
@@ -144,4 +157,8 @@ class CharExtractor(image: Image) {
 
   private def convertLineToBooleans(line: Int): Seq[Boolean] =
       for (i <- 0 to image.width - 1) yield if (image.pixel(i, line) == backgroundColor) false else true
+}
+
+object CharExtractor {
+  val MIN_NB_PIXELS = 40
 }

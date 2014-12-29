@@ -3,6 +3,7 @@ package net.ocr.image
 import java.io.File
 
 import com.sksamuel.scrimage.{Image, Color}
+import net.ocr.common.{Rectangle, AreaCharacter, AreaWord, AreaParagraph}
 import org.scalatest.FunSuite
 
 class FullCharExtractorTest extends FunSuite {
@@ -19,9 +20,14 @@ class FullCharExtractorTest extends FunSuite {
     val paragraphs = fullCharExtractor.extractAllCharacters(image)
 
     for (j <- 0 to paragraphs.size - 1) {
-      val characters: List[Image] = paragraphs(j)
-      for (i <- 0 to characters.size - 1) {
-        characters(i).write(new File(s"src/test/resources/long-text1/paragraph_$j/char_$i.png"))
+      val words: List[AreaWord] = paragraphs(j).words
+      for (i <- 0 to words.size - 1) {
+        val characters: List[AreaCharacter] = words(i).chars
+        for (k <- 0 to characters.size - 1) {
+          val c: Rectangle = characters(k).bounds
+          image.subimage(c.x, c.y, c.width, c.height)
+            .write(new File(s"src/test/resources/long-text1/paragraph_$j/char_$i.png"))
+        }
       }
     }
   }

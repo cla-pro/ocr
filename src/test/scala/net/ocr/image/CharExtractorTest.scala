@@ -23,7 +23,9 @@ class CharExtractorTest extends FunSuite {
       val characters = (for (w <- words) yield charExtractor.extractCharacters(w).reverse).flatten
 
       for (i <- 0 to characters.size - 1) {
-        characters(i).write(new File(s"src/test/resources/full_test/paragraph_$j/char_$i.png"))
+        val bounds: Rectangle = characters(i)
+        image.subimage(bounds.x, bounds.y, bounds.width, bounds.height)
+          .write(new File(s"src/test/resources/full_test/paragraph_$j/char_$i.png"))
       }
     }
   }

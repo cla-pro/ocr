@@ -17,27 +17,35 @@ class CharRecognizer(initAlphabet: Option[Map[Char, NeuralNetwork]]) {
   }
 
   def learn(image: Image, expected: Char): CharRecognizer = {
-    // TODO handle the case of a new unknown character
-    val imageAsVector = new CharImagePreprocessor().prepareImage(image)
-    val neuralExecutions = alphabet.mapValues(neural => neural.execute(imageAsVector))
+    def learnInternal = {
+      val imageAsVector = new CharImagePreprocessor().prepareImage(image)
+      val neuralExecutions = alphabet.mapValues(neural => neural.execute(imageAsVector))
 
-    val positive = DenseVector(1.0)
-    val negative = DenseVector(0.0)
+      val positive = DenseVector(1.0)
+      val negative = DenseVector(0.0)
 
-    val upgradedAlphabet = neuralExecutions.map((e) => e._1 -> e._2.backPropagate(if (e._1 == expected) positive else negative))
-    CharRecognizer(upgradedAlphabet)
+      val upgradedAlphabet = neuralExecutions.map((e) => e._1 -> e._2.backPropagate(if (e._1 == expected) positive else negative))
+      CharRecognizer(upgradedAlphabet)
+    }
+
+    if (!alphabet.contains(expected)) {
+      CharRecognizer(alphabet + (expected -> initialNeuralNetwork)).learn(image, expected)
+    } else {
+      learnInternal
+    }
   }
 
-  def recognize(image: Image): Char = {
-    println("Image size (" + image.width + ", " + image.height + ")")
+  def recognize(image: Image): Option[Char] = {
+    println("Image size width=" + image.width + ", height=" + image.height)
     val imageAsVector = new CharImagePreprocessor().prepareImage(image)
-    println("Vector size " + imageAsVector.length)
     val neuralExecutions = alphabet.mapValues(neural => neural.execute(imageAsVector))
-    val filtered = neuralExecutions.filter(e => e._2.output(0) > 0)
-    filtered.toList.sortBy(e => e._2.output(0)).last._1
+    neuralExecutions.toList.filter(e => e._2.output(0) > 0).sortBy(e => e._2.output(0)).reverse match {
+      case Nil => None
+      case x :: xs => Some(x._1)
+    }
   }
 
-  private def nonTrainedAlphabet = CharRecognizer.ALPHABET_CHARACTERS.map(c => (c, initialNeuralNetwork)).toMap
+  private def nonTrainedAlphabet = new HashMap[Char, NeuralNetwork] //CharRecognizer.ALPHABET_CHARACTERS.map(c => (c, initialNeuralNetwork)).toMap
 
   private def initialNeuralNetwork = {
     val A = DenseMatrix.ones[Double](400, 400)

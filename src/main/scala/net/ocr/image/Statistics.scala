@@ -15,4 +15,6 @@ class Statistics {
       case _ => StatsBlock(p._2, p._1, p._1) :: acc
     }).reverse
   }
+
+  //def prettyPrintStats(stats: List[StatsBlock]): Unit = stats.foreach(f => println(String.format("%3d => %3d", f.))
 }
