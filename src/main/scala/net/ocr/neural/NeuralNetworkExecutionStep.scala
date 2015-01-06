@@ -25,7 +25,10 @@ class BackPropagationMiddleStep(weights: DenseMatrix[Double], outputRaw: DenseVe
     delta
   }
 
-  def deltaWeights(deltas: DenseVector[Double], learningRate: Double): DenseMatrix[Double] = deltas.toDenseMatrix.t.*(input.toDenseMatrix) * learningRate
+  def deltaWeights(deltas: DenseVector[Double], learningRate: Double): DenseMatrix[Double] = {
+    val deltasTranspos: DenseMatrix[Double] = deltas.toDenseMatrix.t
+    deltasTranspos.*(input.toDenseMatrix) :* learningRate
+  }
 }
 
 class BackPropagationOutputStep(outputRaw: DenseVector[Double], input: DenseVector[Double],

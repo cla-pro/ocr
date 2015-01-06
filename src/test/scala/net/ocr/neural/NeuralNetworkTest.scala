@@ -1,6 +1,7 @@
 package net.ocr.neural
 
 import breeze.linalg.{inv, DenseVector, DenseMatrix}
+import scala.math._
 import org.scalatest.FunSuite
 
 /**
@@ -143,5 +144,21 @@ class NeuralNetworkTest extends FunSuite {
     println("New B: " + newB)
     val newC = C + deltaWeightsStep3
     println("New C: " + newC)
+  }
+
+  test("Test the tangent transfer function") {
+    val neural = NeuralNetwork(DenseMatrix.ones[Double](1, 2), DenseMatrix.ones[Double](1, 2), DenseMatrix.ones[Double](1, 2))
+
+    val input1 = DenseVector[Double](Pi / 4.0, 0, Pi / 2.0, 3.0 * Pi / 4.0)
+    println("Function " + neural.transferFunctionTangent.function(input1))
+    println("Derivative " + neural.transferFunctionTangent.derivative(input1))
+  }
+
+  test("Test the sigmoid transfer function") {
+    val neural = NeuralNetwork(DenseMatrix.ones[Double](1, 2), DenseMatrix.ones[Double](1, 2), DenseMatrix.ones[Double](1, 2))
+
+    val input1 = DenseVector[Double](1, 0, 0.5)
+    println("Function " + neural.transferFunctionSigmoid.function(input1))
+    println("Derivative " + neural.transferFunctionSigmoid.derivative(input1))
   }
 }

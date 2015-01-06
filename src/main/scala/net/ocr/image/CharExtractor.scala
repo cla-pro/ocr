@@ -57,7 +57,7 @@ class CharExtractor(image: Image) {
       }
     }
 
-    extractCharsInternal(0, Nil)
+    extractCharsInternal(0, Nil).reverse
   }
 
   private def getBounds(positions: List[XYPosition]) = {
@@ -80,7 +80,7 @@ class CharExtractor(image: Image) {
   def findParagraphs(): List[List[Block]] = {
     val bits = compressLinesToBits()
     val lineBlocks = bitsToBlock(bits.map(f => f._1))
-    val filteredLineBlocks = lineBlocks //.filter(b => b.full == false || (b.full == true && b.length > 5))
+    val filteredLineBlocks = lineBlocks
 
     val stats = new Statistics().groupStats(filteredLineBlocks.filter(_.full == false))
     val interlineHeightMax = computeLineHeight(stats).to
@@ -94,7 +94,7 @@ class CharExtractor(image: Image) {
       }
       case _ => acc match {
         case Nil => List(List(block))
-        case x :: xs => (x ::: List(block)) :: xs
+        case x :: xs => (block :: x) :: xs
       }
     }).filter((p) => p.nonEmpty)
   }
@@ -115,9 +115,29 @@ class CharExtractor(image: Image) {
   }
 
   private def findWordsForLine(line: Block): List[Rectangle] = {
+    // TODO remove the code duplication with the find paragraphs method
     val bits = compressBlock(line.start, line.end)
-    val blocks = bitsToBlock(bits).reverse.filter((b) => b.full)
-    blocks.map((b) => Rectangle(b.start, line.start, b.length, line.length))
+    val blocks = bitsToBlock(bits.map(f => f._1))
+
+    val stats = new Statistics().groupStats(blocks.filter(_.full == false))
+    val interlineWidthMax = computeLineHeight(stats).to
+
+    val words = blocks.filter((lineBlock) => lineBlock.full || lineBlock.length > interlineWidthMax).reverse
+    val wordsElements = words.foldLeft[List[List[Block]]](Nil)((acc, block) => block match {
+      case Block(false, _, _) => acc match {
+        case Nil => acc
+        case x :: xs if x.size == 0 => acc
+        case _ => List() :: acc
+      }
+      case _ => acc match {
+        case Nil => List(List(block))
+        case x :: xs => (block :: x) :: xs
+      }
+    }).filter((p) => p.nonEmpty)
+
+    wordsElements
+      .map(w => w.tail.foldLeft(Rectangle(w.head.start, line.start, w.head.end - w.head.start, line.end - line.start))
+        ((acc, e) => acc.extendsWith(Rectangle(e.start, line.start, e.end - e.start, line.end - line.start))))
   }
 
   def bitsToBlock(bits: Seq[Boolean]): List[Block] =
@@ -125,15 +145,15 @@ class CharExtractor(image: Image) {
       case Nil => Block(bit, 0, 0) :: Nil
       case Block(full, start, end) :: xs =>
         if (full == bit) Block(full, start, end + 1) :: xs
-        else Block(bit, end + 1, end + 1) :: Block(full, start, end) :: xs
+        else Block(bit, end + 1, end + 1) :: acc
     }).reverse
 
   def compressLinesToBits(): Seq[(Boolean, Int)] = {
     val lines = (for (i <- 0 to image.height - 1) yield compressLine(i)).map(_._2)
 
     lines.foldLeft[List[(Boolean, Int)]](Nil)((acc, count) => acc match {
-      case Nil => List((count > MIN_NB_PIXELS, count))
-      case _ if (count > MIN_NB_PIXELS) => acc ::: List((true, count))
+      case Nil => List((count > MIN_LINE_NB_PIXELS, count))
+      case _ if (count > MIN_LINE_NB_PIXELS) => acc ::: List((true, count))
       case _ if (count < 2) => acc ::: List((false, count))
       case _ => acc ::: List((acc.last._1, count))
     })
@@ -146,19 +166,39 @@ class CharExtractor(image: Image) {
     }
 
     val counter = compressLineInternal(0, 0)
-    (counter > MIN_NB_PIXELS, counter)
+    (counter > MIN_LINE_NB_PIXELS, counter)
   }
 
-  private def compressBlock(startLine: Int, endLine: Int): Seq[Boolean] = {
-    val convertedLines = for (line <- startLine to endLine) yield convertLineToBooleans(line)
-    val seqWithFalse: Seq[Boolean] = for (e <- 0 to image.width - 1) yield false
-    convertedLines.foldLeft(seqWithFalse)((acc, elem) => acc.zip(elem).map((a) => a._1 || a._2))
+  private def compressBlock(fromLine: Int, toLine: Int): Seq[(Boolean, Int)] = {
+    val columns = (for (i <- 0 to image.width - 1) yield compressColumn(i, fromLine, toLine)).map(_._2)
+
+    columns.foldLeft[List[(Boolean, Int)]](Nil)((acc, count) => acc match {
+      case Nil => List((count > MIN_COL_NB_PIXELS, count))
+      case _ if (count > MIN_COL_NB_PIXELS) => acc ::: List((true, count))
+      case _ if (count < 2) => acc ::: List((false, count))
+      case _ => acc ::: List((acc.last._1, count))
+    })
+
+//    val convertedLines = for (line <- startLine to endLine) yield convertLineToBooleans(line)
+//    val seqWithFalse: Seq[Boolean] = for (e <- 0 to image.width - 1) yield false
+//    convertedLines.foldLeft(seqWithFalse)((acc, elem) => acc.zip(elem).map((a) => a._1 || a._2))
+  }
+
+  private def compressColumn(column: Int, fromLine: Int, toLine: Int): (Boolean, Int) = {
+    def compressColumnInternal(counter: Int, position: Int): Int = {
+      if (position <= toLine) compressColumnInternal(counter + (if (image.pixel(column, position) != backgroundColor) 1 else 0), position + 1)
+      else counter
+    }
+
+    val counter = compressColumnInternal(0, fromLine)
+    (counter > MIN_COL_NB_PIXELS, counter)
   }
 
   private def convertLineToBooleans(line: Int): Seq[Boolean] =
-      for (i <- 0 to image.width - 1) yield if (image.pixel(i, line) == backgroundColor) false else true
+      for (i <- 0 to image.width - 1) yield (image.pixel(i, line) != backgroundColor)
 }
 
 object CharExtractor {
-  val MIN_NB_PIXELS = 40
+  val MIN_LINE_NB_PIXELS = 40
+  val MIN_COL_NB_PIXELS = 5
 }

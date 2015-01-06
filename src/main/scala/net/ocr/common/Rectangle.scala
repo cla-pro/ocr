@@ -18,13 +18,19 @@ class Rectangle(_x: Int, _y: Int, _width: Int, _height: Int) {
     def otherTop = other.y + other.height
 
     def newLeft = min(x, other.x)
-    def newRight = min(right, otherRight)
+    def newRight = max(right, otherRight)
     def newBottom = min(y, other.y)
-    def newTop = min(top, otherTop)
+    def newTop = max(top, otherTop)
     Rectangle(newLeft, newBottom, newRight - newLeft, newTop - newBottom)
   }
 
   override def toString = s"Rectangle($x, $y, $width, $height)"
+
+  override def equals(that: Any): Boolean =
+    if (that != null && that.isInstanceOf[Rectangle]) {
+      val other = that.asInstanceOf[Rectangle]
+      return x == other.x && y == other.y && width == other.width && height == other.height
+    } else false
 }
 
 object Rectangle {

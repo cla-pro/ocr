@@ -32,4 +32,26 @@ class LearningTest extends FunSuite {
     printPerformance(checkPerformance(neuralNetwork))
     iterate(wholeInputs, neuralNetwork)
   }
+
+  test("Test Big values") {
+    def iteration(neuralNetwork: NeuralNetwork, input: DenseVector[Double], expected: DenseVector[Double], iteration: Int): NeuralNetwork = {
+      println(s"Iteration $iteration")
+      val result: NeuralNetworkExecution = neuralNetwork.execute(input)
+      println("\tExpected: " + expected + " => actual: " + result.output)
+
+      val upgraded: NeuralNetwork = result.backPropagate(expected)
+      val upgradedResult = upgraded.execute(input)
+      println("\tUpgraded expected: " + expected + " => actual: " + upgradedResult.output)
+
+      upgraded
+    }
+
+    val input = DenseVector[Double](200.0, 200.0)
+    val expected = DenseVector[Double](0.9)
+
+    val neuralNetwork = NeuralNetwork(new DenseMatrix[Double](2, 3, Array(1.0, 1.0, 1.0, 1.0, 1.0, 1.0)),
+      new DenseMatrix[Double](2, 3, Array(1.0, 1.0, 1.0, 1.0, 1.0, 1.0)), new DenseMatrix[Double](1, 3, Array(1.0, 1.0, 1.0)))
+
+    List.range(0, 10).foldLeft(neuralNetwork)((acc, iter) => iteration(acc, input, expected, iter))
+  }
 }
