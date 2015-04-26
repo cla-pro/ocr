@@ -10,7 +10,7 @@ import scala.math._
  * Created by cla on 18.06.2014.
  */
 class NeuralNetworkExecution(neuralNetwork: NeuralNetwork, input: DenseVector[Double], transferFunction: TransferFunction) {
-  private val LEARNING_RATE = 1 //pow(10, 48)
+  private val LEARNING_RATE = pow(10, 2) //pow(10, 48)
 
   private val inputStep = new NeuralNetworkExecutionStep(neuralNetwork.inputMatrix, input, transferFunction)
   private val middleStep = new NeuralNetworkExecutionStep(neuralNetwork.middleMatrix, inputStep.output, transferFunction)
@@ -35,10 +35,14 @@ class NeuralNetworkExecution(neuralNetwork: NeuralNetwork, input: DenseVector[Do
 
     if (expected(0) == 0.9) {
       //input=$deltaInputMatrix, middle=$deltaMiddleMatrix,
-      println(s"diff weights: output=$deltaOutputMatrix")
+      //println(s"diff weights: output=$deltaOutputMatrix")
     }
 
     NeuralNetwork(neuralNetwork.inputMatrix + deltaInputMatrix, neuralNetwork.middleMatrix + deltaMiddleMatrix,
                     neuralNetwork.outputMatrix + deltaOutputMatrix)
+//    neuralNetwork.inputMatrix = neuralNetwork.inputMatrix + deltaInputMatrix
+//    neuralNetwork.middleMatrix = neuralNetwork.middleMatrix + deltaMiddleMatrix
+//    neuralNetwork.outputMatrix = neuralNetwork.outputMatrix + deltaOutputMatrix
+//    neuralNetwork
   }
 }

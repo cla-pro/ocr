@@ -1,10 +1,12 @@
-import java.io.{FileReader, BufferedReader, File}
+import java.io.{FileWriter, FileReader, BufferedReader, File}
+import java.nio.file.{Paths, Files}
+import java.time.LocalDateTime
 
 import breeze.linalg.{DenseMatrix, DenseVector}
 import com.sksamuel.scrimage.{Image, Color}
 import net.ocr.alphabet.CharRecognizer
 import net.ocr.common.{Rectangle, AreaCharacter, AreaWord, AreaParagraph}
-import net.ocr.image.FullCharExtractor
+import net.ocr.image.{CharImagePreprocessor, FullCharExtractor}
 
 /**
  * Created by cla on 12.06.2014.
@@ -23,7 +25,7 @@ object Main {
 
   val INIT_CHARS = readChars("src/main/resources/init-chars.txt")
 
-  def main(args: Array[String]): Unit = {
+  def main2(args: Array[String]): Unit = {
     def distToWhite(c: Color): Int = Math.abs(Color.White.getBlue - c.getBlue) + Math.abs(Color.White.getRed - c.getRed) + Math.abs(Color.White.getGreen - c.getGreen)
     def flattenColor(c: Color): Int = if (distToWhite(c) < 250) Color.White.argb else c.argb
 
@@ -41,9 +43,27 @@ object Main {
     println("#Areas: " + characterAreas.length)
     println("#Chars: " + expected.length)
 
-    val recognizer: CharRecognizer = learn(List(images.head), List(expected.head))
-    //val recognized = recognize(recognizer, images.filter(p => p.width > 1 && p.height > 1))
-    //println(recognized.mkString(""))
+    println(s"First char: ${expected.head}")
+    val numberOfLearning: Int = 50
+    val recognizer: CharRecognizer = learnNTimes(images.slice(0, 20), expected.slice(0, 20), numberOfLearning)
+    println(s"$numberOfLearning learning processes completed")
+    val recognized = recognize(recognizer, images.filter(p => p.width > 1 && p.height > 1))
+    println(recognized.mkString(""))
+  }
+
+  def learnNTimes(images: List[Image], expected: List[String], numberOfLearning: Int = 1): CharRecognizer = {
+    def learnInternal(recognizer: CharRecognizer, count: Int): CharRecognizer = count match {
+      case _ if (count == numberOfLearning) => recognizer
+      case _ => {
+        println(s"Start ${count+1}th learning ${LocalDateTime.now()}")
+        recognizer.resetDurations
+        val taughtRecognizer: CharRecognizer = learn(recognizer, images, expected)
+        //taughtRecognizer.displayDurations
+        learnInternal(taughtRecognizer, count + 1)
+      }
+    }
+
+    learnInternal(CharRecognizer().initWithChars(INIT_CHARS), 0)
   }
 
   def saveImages(images: List[Image]): Unit = {
@@ -52,23 +72,19 @@ object Main {
     }
   }
 
+  //def writeRecognizerToFile(fileName: String, ) = Files.write(Paths.get(fileName), )
+
   def extractImages(image: Image, areas: List[AreaCharacter]): List[Image] =
     areas.map(a => image.subimage(a.bounds.x, a.bounds.y, a.bounds.width, a.bounds.height))
 
   def learn(charactersAsImage: List[Image], expectedResults: List[String]): CharRecognizer = {
-    def learnInternal(recognizer: CharRecognizer, images: List[Image], expected: List[String]): CharRecognizer = expected match {
-      case Nil => recognizer
-      case "##" :: xs => {
-        println("Ignoring ##")
-        learnInternal(recognizer, images.tail, expected.tail)
-      }
-      case x :: xs => {
-        println("Learning with expected chars: " + expected.head)
-        learnInternal(recognizer.learn(images.head, expected.head), images.tail, expected.tail)
-      }
-    }
+    learn(CharRecognizer().initWithChars(INIT_CHARS), charactersAsImage, expectedResults)
+  }
 
-    learnInternal(CharRecognizer().initWithChars(INIT_CHARS), charactersAsImage, expectedResults)
+  def learn(recognizer: CharRecognizer, images: List[Image], expected: List[String]): CharRecognizer = expected match {
+    case Nil => recognizer
+    case "##" :: xs => learn(recognizer, images.tail, expected.tail)
+    case x :: xs => learn(recognizer.learn(images.head, expected.head), images.tail, expected.tail)
   }
 
   def recognize(recognizer: CharRecognizer, charactersAsImage: List[Image]) = {

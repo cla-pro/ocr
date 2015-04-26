@@ -11,9 +11,9 @@ import scala.math._
  */
 class NeuralNetwork private (_inputMatrix: DenseMatrix[Double], _middleMatrix: DenseMatrix[Double],
                              _outputMatrix: DenseMatrix[Double]) {
-  val inputMatrix = _inputMatrix
-  val middleMatrix = _middleMatrix
-  val outputMatrix = _outputMatrix
+  var inputMatrix = _inputMatrix
+  var middleMatrix = _middleMatrix
+  var outputMatrix = _outputMatrix
 
   def execute(input: DenseVector[Double]): NeuralNetworkExecution = new NeuralNetworkExecution(this, input, transferFunctionSigmoid)
 
